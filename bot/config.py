@@ -8,3 +8,8 @@ class Config(object):
                                                                   token=TELEGRAM_BOT_ACCESS_TOKEN)
     TELEGRAM_FILE_URL = '{baseurl}file/bot{token}/'.format(baseurl=TELEGRAM_BASE_URL,
                                                            token=TELEGRAM_BOT_ACCESS_TOKEN)
+    CASCADE_FILE = 'data/cascades/lbpcascade_frontalface.xml'
+
+    IMG_EXTN = '.jpg'
+
+    CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL')
