@@ -8,7 +8,7 @@ After=dobby-bot.service
 [Service]
 User=pi
 Group=www-data
-WorkingDirectory=/home/pi/dobby-bit
+WorkingDirectory=/home/pi/dobby-bot
 ExecStart=/home/pi/ocv/venv/bin/python dobby-bot.py
 ExecReload=/bin/kill -s HUP $MAINPID
 ExecStop=/bin/kill -s TERM $MAINPID
