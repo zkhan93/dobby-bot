@@ -25,7 +25,7 @@ logger = logging.getLogger('dobby')
 class FaceRepo(object):
 
     def __init__(self, base_path='tmp'):
-        if not os.environ.get('CLOUDINARY_URL'):
+        if not config.CLOUDINARY_URL:
             raise Exception('set CLOUDINARY_URL environment variable before creating FaceRepo instances')
         self.base_path = base_path
         self.face_data_dir = 'face-data'
@@ -146,9 +146,9 @@ class TelegramBot(object):
     fileid_filepath_map = {}
 
     def __init__(self):
-        token = os.environ.get('TELEGRAM_BOT_API_KEY')
+        token = config.TELEGRAM_BOT_ACCESS_TOKEN
         if not token:
-            raise Exception("set TELEGRAM_BOT_API_KEY before creating TelegramBot instances")
+            raise Exception("set TELEGRAM_BOT_ACCESS_TOKEN before creating TelegramBot instances")
         self.updater = Updater(token=token)
         self.dispatcher = self.updater.dispatcher
         self.learn = True
