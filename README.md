@@ -3,7 +3,7 @@ telegram bot for dobby's learning
 ```
 [Unit]
 Description=Bot Daemon for Dobby
-After=dobby-bot.service
+After=network.target
 
 [Service]
 User=pi
