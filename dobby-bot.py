@@ -14,11 +14,15 @@ import numpy as np
 import requests
 import zipfile
 import StringIO
+import datetime
 
+logfilename = '/var/log/dobby-bot/{}.log'.format(datetime.datetime.now().strftime('%Y-%m-%d'))
 
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s',
                     datefmt="%Y-%m-%d %H:%M:%S",
-                    level=logging.INFO)
+                    level=logging.INFO,
+                    filename=logfilename
+                    )
 logger = logging.getLogger('dobby')
 
 
@@ -118,7 +122,7 @@ class FaceRecService(object):
                                                      scaleFactor=1.1,
                                                      minNeighbors=3)
         if len(cordinates) == 0:
-            return None, None
+            return []
 
         faces_images = [img_gray[y:y + w, x:x + h] for (x, y, w, h) in cordinates]
         face_filenames = [self._save_face_img(face) for face in faces_images]
@@ -137,9 +141,12 @@ class FaceRecService(object):
         prediction = self.face_recognizer.predict(cv2.imread(faceimg, cv2.IMREAD_GRAYSCALE))
         if prediction:
             lable, confidence = prediction
-            name = self.labelToName(lable)
-            logger.info("prediction %s with %s confidence", name, confidence)
-            return name
+            if confidence <= 100:
+                name = self.labelToName(lable)
+                logger.info("prediction %s with %s confidence", name, round(100 - confidence))
+                return '{} ({})'.format(name, confidence)
+            else:
+                return 'Unknown face'
 
 
 class TelegramBot(object):
@@ -176,6 +183,7 @@ class TelegramBot(object):
         filepath = os.path.join('.', 'tmp', filename)
         photo.get_file().download(filepath)
         face_filenames = self.facerec_service.extract_faces(filepath)
+        logger.info('faces %s', face_filenames)
         for facefilepath in face_filenames:
             if self.learn:
                 message = bot.send_photo(update.message.chat_id, open(facefilepath), "Who is this?")
