@@ -14,4 +14,3 @@ CASCADE_FILE = 'data/cascades/lbpcascade_frontalface.xml'
 IMG_EXTN = '.jpg'
 
 CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL')
-

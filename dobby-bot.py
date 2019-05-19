@@ -1,152 +1,15 @@
-import logging
+import time
+import os
+import subprocess
+import config
+import requests
+from operator import methodcaller
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler, Filters
-from operator import methodcaller
-import time
-import os
-import cv2
-import config
-import cloudinary
-import cloudinary.uploader
-import re
-import numpy as np
-import requests
-import zipfile
-import StringIO
-import datetime
-
-logfilename = '/var/log/dobby-bot/{}.log'.format(datetime.datetime.now().strftime('%Y-%m-%d'))
-
-logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s',
-                    datefmt="%Y-%m-%d %H:%M:%S",
-                    level=logging.INFO,
-                    filename=logfilename
-                    )
-logger = logging.getLogger('dobby')
-
-
-class FaceRepo(object):
-
-    def __init__(self, base_path='tmp'):
-        if not config.CLOUDINARY_URL:
-            raise Exception('set CLOUDINARY_URL environment variable before creating FaceRepo instances')
-        self.base_path = base_path
-        self.face_data_dir = 'face-data'
-        self.img_extn = '.jpg'
-
-    def download_all(self):
-        zip_file_url = cloudinary.utils.download_zip_url(prefixes='/')
-        logger.info("source zip url: %s", zip_file_url)
-        r = requests.get(zip_file_url, stream=True)
-        z = zipfile.ZipFile(StringIO.StringIO(r.content))
-        z.extractall(path='tmp/face-data/')
-
-    def upload(self, imagepath, name):
-        if not name:
-            name = 'unknown'
-        folder = '-'.join(re.split(r'\s+', name.lower()))
-        if not os.path.exists(imagepath):
-            logger.error('%s does not exists', imagepath)
-            return
-        res = cloudinary.uploader.upload(imagepath, folder=folder)
-        logger.debug(res)
-
-    def _folder_to_name(self, foldername):
-        if foldername:
-            return foldername.replace('-', ' ')
-
-    def _name_to_folder(self, name):
-        if name:
-            return name.lower().replace(' ', '-')
-
-    def _capitalize(self, name):
-        words = name.split(' ')
-        words = [chr(ord(word[0]) - 32) + word[1:] for word in words]
-        return ' '.join(words)
-
-    def get_faces_and_names(self):
-        # Assuming every folder under tmp/ represents a person name seperated by `-`
-        # All files inside ./tmp/firstname-secondname/* is a face image of the person with that name
-        self.download_all()
-        # parse the folder
-        faces, labels = [], []
-        logger.info(self.base_path)
-        logger.info(self.face_data_dir)
-        dirname = os.path.join(self.base_path, self.face_data_dir)
-        logger.info("%s %s", dirname, os.listdir(dirname))
-        if not os.path.exists(dirname):
-            raise Exception('%s does not exists' % dirname)
-        subjectsdir = [dname for dname in os.listdir(dirname) if os.path.isdir(os.path.join(dirname, dname))]
-        logger.info("subjectsdir %s", subjectsdir)
-        names = [self._folder_to_name(subject) for subject in subjectsdir]
-        logger.info("names %s", names)
-        names = [self._capitalize(name) for name in names]
-        logger.info("names %s", names)
-        for folder, name in zip(subjectsdir, names):
-            img_files = os.listdir(os.path.join(dirname, folder))
-            logger.info("img_files %s", img_files)
-            img_files = [img for img in img_files if img.endswith('%s' % self.img_extn)]
-            logger.info("img_files %s", img_files)
-            for img_file in img_files:
-                img_path = os.path.join(dirname, folder, img_file)
-                face_img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-                if face_img is not None:
-                    faces.append(face_img)
-                    labels.append(name)
-        logger.info("faces loded are %s", set(labels))
-        return faces, labels
-
-
-class FaceRecService(object):
-
-    def __init__(self):
-        self.f_cascade = cv2.CascadeClassifier(config.CASCADE_FILE)
-        self.face_recognizer = cv2.face.LBPHFaceRecognizer_create()
-        self.face_repo = FaceRepo()
-        self.train()
-
-    def train(self):
-        faces, self.names = self.face_repo.get_faces_and_names()
-        lables = np.array(list(range(len(self.names))))
-        self.face_recognizer.train(faces, lables)
-
-    def labelToName(self, label):
-        if label < len(self.names):
-            return self.names[label]
-
-    def extract_faces(self, filename):
-        img_copy = cv2.imread(filename)
-        img_gray = cv2.cvtColor(img_copy, cv2.COLOR_BGR2GRAY)
-        cordinates = self.f_cascade.detectMultiScale(img_gray,
-                                                     scaleFactor=1.1,
-                                                     minNeighbors=3)
-        if len(cordinates) == 0:
-            return []
-
-        faces_images = [img_gray[y:y + w, x:x + h] for (x, y, w, h) in cordinates]
-        face_filenames = [self._save_face_img(face) for face in faces_images]
-        os.remove(filename)
-        return face_filenames
-
-    def _save_face_img(self, img):
-        filename = str(time.time()) + config.IMG_EXTN
-        filepath = os.path.join('.', 'tmp', 'faces', filename)
-        cv2.imwrite(filepath, img)
-        time.sleep(0.25)
-        return filepath
-
-    def predict(self, faceimg):
-        # predict the image using our face recognizer
-        prediction = self.face_recognizer.predict(cv2.imread(faceimg, cv2.IMREAD_GRAYSCALE))
-        if prediction:
-            lable, confidence = prediction
-            if confidence <= 100:
-                name = self.labelToName(lable)
-                logger.info("prediction %s with %s confidence", name, round(100 - confidence))
-                return '{} ({})'.format(name, confidence)
-            else:
-                return 'Unknown face'
+from bodyparts import camera
+from face_rec_service import FaceRecService
+from logger import logger
 
 
 class TelegramBot(object):
@@ -171,7 +34,74 @@ class TelegramBot(object):
     def predict_command(self, bot, update, args):
         self.learn = False
         self.facerec_service = FaceRecService()
-        bot.send_message(chat_id=update.message.chat_id, text="Prediction mode on!")
+        msg = "Prediction mode on!! I cam predict faced of '{}'".format("','".join(set(self.facerec_service.names)))
+        bot.send_message(chat_id=update.message.chat_id, text=msg)
+
+    def takepic_command(self, bot, update, args):
+        cam = camera.Camera()
+        cam.open_eyes()
+        img = cam.get_frame(save=True)
+        cam.close_eyes()
+        bot.send_photo(update.message.chat_id, open(img), 'here you go!')
+        logger.warn('deleting %s', img)
+        os.remove(img)
+
+    def move_command(self, bot, update, args):
+        logger.info('move %s' % args)
+        responses = [requests.get('http://localhost:8080/api/wheels/%s' % direction) for direction in args]
+        if all(res.ok for res in responses):
+            bot.send_message(chat_id=update.message.chat_id, text='moved')
+        else:
+            bot.send_message(chat_id=update.message.chat_id,
+                             text='could not move %s' % ', '.join([d for d, res in zip(args, responses) if not res.ok]))
+
+    def _convert_vid(self, filepath):
+        newfilepath = os.path.splitext(filepath)[0] + '.mp4'
+        command = "MP4Box -add {} {}".format(filepath, newfilepath)
+        logger.info(command)
+        try:
+            subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
+        except subprocess.CalledProcessError as e:
+            logger.error('FAIL:\ncmd:{}\noutput:{}'.format(e.cmd, e.output))
+        else:
+            return newfilepath
+
+    def recordvid_command(self, bot, update, args):
+        logger.info('record command %s', args)
+        secs = 10
+        res = (512, 288)
+        if args:
+            try:
+                secs = int(args[0])
+            except Exception as ex:
+                logger.warn(str(ex))
+            try:
+                res = map(int, args[1:3])
+            except Exception as ex:
+                logger.warn(str(ex))
+
+        logger.info('creating camera')
+        cam = camera.Camera()
+        logger.info('opening camera')
+        cam.open_eyes()
+        logger.info('camera warmed up')
+        filepath = './tmp/vid/%s.h264' % str(int(time.time()))
+        logger.info('starting to record at %s', filepath)
+        cam.start_recording(filepath, res)
+        time.sleep(secs)
+        cam.stop_recording()
+        logger.info('recording complete')
+        cam.close_eyes()
+        logger.info('camera closed')
+        # convert video
+        logger.info('converting video to mp4')
+        newfilepath = self._convert_vid(filepath)
+        logger.warn('deleting %s', filepath)
+        os.remove(filepath)
+        logger.info('sending message')
+        bot.send_video(chat_id=update.message.chat_id, video=open(newfilepath, 'rb'), supports_streaming=True)
+        logger.warn('deleting %s', newfilepath)
+        os.remove(newfilepath)
 
     def _get_biggest_photo_size(self, photos):
         photos.sort(key=methodcaller('__getitem__', 'file_size'))
@@ -216,6 +146,15 @@ class TelegramBot(object):
 
         predict_handler = CommandHandler('predict', self.predict_command, pass_args=True)
         self.dispatcher.add_handler(predict_handler)
+
+        takepic_handler = CommandHandler('photo', self.takepic_command, pass_args=True)
+        self.dispatcher.add_handler(takepic_handler)
+
+        record_handler = CommandHandler('video', self.recordvid_command, pass_args=True)
+        self.dispatcher.add_handler(record_handler)
+
+        move_handler = CommandHandler('move', self.move_command, pass_args=True)
+        self.dispatcher.add_handler(move_handler)
 
         photo_handler = MessageHandler(Filters.photo, self.photo_msg)
         self.dispatcher.add_handler(photo_handler)
