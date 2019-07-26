@@ -52,7 +52,7 @@ class FaceRepo(object):
     def get_faces_and_names(self):
         # Assuming every folder under tmp/ represents a person name seperated by `-`
         # All files inside ./tmp/firstname-secondname/* is a face image of the person with that name
-        self.download_all()
+        #self.download_all()
         # parse the folder
         faces, labels = [], []
         dirname = self.face_data_dir

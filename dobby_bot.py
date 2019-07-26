@@ -34,7 +34,7 @@ class TelegramBot(object):
 
     def predict_command(self, bot, update, args):
         self.learn = False
-        self.facerec_service = FaceRecService()
+        # self.facerec_service = FaceRecService(self.base_dir)
         msg = "Prediction mode on!! I cam predict faced of '{}'".format("','".join(set(self.facerec_service.names)))
         bot.send_message(chat_id=update.message.chat_id, text=msg)
 
