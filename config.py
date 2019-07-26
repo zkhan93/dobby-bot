@@ -9,6 +9,7 @@ TELEGRAM_METHOD_BASE_URL = '{baseurl}bot{token}'.format(baseurl=TELEGRAM_BASE_UR
 
 TELEGRAM_FILE_BASE_URL = '{baseurl}file/bot{token}'.format(baseurl=TELEGRAM_BASE_URL,
                                                            token=TELEGRAM_BOT_ACCESS_TOKEN)
+# relative to root project folder
 CASCADE_FILE = 'data/cascades/lbpcascade_frontalface.xml'
 
 IMG_EXTN = '.jpg'

@@ -5,18 +5,18 @@ import cloudinary
 import cloudinary.uploader
 import re
 import config
-from logger import logger
+from lib.log import logger
 import os
 import cv2
 
 
 class FaceRepo(object):
 
-    def __init__(self, base_path='tmp'):
+    def __init__(self, base_path='.'):
         if not config.CLOUDINARY_URL:
             raise Exception('set CLOUDINARY_URL environment variable before creating FaceRepo instances')
         self.base_path = base_path
-        self.face_data_dir = 'face-data'
+        self.face_data_dir = os.path.join(self.base_path, 'tmp', 'face-data')
         self.img_extn = '.jpg'
 
     def download_all(self):
@@ -24,7 +24,7 @@ class FaceRepo(object):
         logger.info("source zip url: %s", zip_file_url)
         r = requests.get(zip_file_url, stream=True)
         z = zipfile.ZipFile(StringIO.StringIO(r.content))
-        z.extractall(path='tmp/face-data/')
+        z.extractall(path=self.face_data_dir)
 
     def upload(self, imagepath, name):
         if not name:
@@ -55,10 +55,7 @@ class FaceRepo(object):
         self.download_all()
         # parse the folder
         faces, labels = [], []
-        logger.info(self.base_path)
-        logger.info(self.face_data_dir)
-        dirname = os.path.join(self.base_path, self.face_data_dir)
-        logger.info("%s %s", dirname, os.listdir(dirname))
+        dirname = self.face_data_dir
         if not os.path.exists(dirname):
             raise Exception('%s does not exists' % dirname)
         subjectsdir = [dname for dname in os.listdir(dirname) if os.path.isdir(os.path.join(dirname, dname))]

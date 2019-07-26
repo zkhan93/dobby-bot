@@ -1,5 +1,6 @@
-import time
+from lib.log import logger
 import os
+import time
 import subprocess
 import config
 import requests
@@ -9,20 +10,20 @@ from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler, Filters
 from bodyparts import camera
 from face_rec_service import FaceRecService
-from logger import logger
 
 
 class TelegramBot(object):
     fileid_filepath_map = {}
 
-    def __init__(self):
+    def __init__(self, base_dir):
         token = config.TELEGRAM_BOT_ACCESS_TOKEN
         if not token:
             raise Exception("set TELEGRAM_BOT_ACCESS_TOKEN before creating TelegramBot instances")
         self.updater = Updater(token=token)
         self.dispatcher = self.updater.dispatcher
         self.learn = True
-        self.facerec_service = FaceRecService()
+        self.base_dir = base_dir
+        self.facerec_service = FaceRecService(self.base_dir)
 
     def start_command(self, bot, update):
         bot.send_message(chat_id=update.message.chat_id, text="Hi! I'm Dobby I'm in leaning mode!")
@@ -110,8 +111,10 @@ class TelegramBot(object):
     def photo_msg(self, bot, update):
         photo = self._get_biggest_photo_size(update.message.photo)
         filename = str(time.time()) + config.IMG_EXTN
-        filepath = os.path.join('.', 'tmp', filename)
+        filepath = os.path.join(self.base_dir, 'tmp', filename)
         photo.get_file().download(filepath)
+        assert os.path.isfile(filepath)
+        logger.info("filepath: {}".format(filepath))
         face_filenames = self.facerec_service.extract_faces(filepath)
         logger.info('faces %s', face_filenames)
         for facefilepath in face_filenames:
@@ -169,7 +172,3 @@ class TelegramBot(object):
             self.updater.idle()
         except KeyboardInterrupt:
             self.updater.stop()
-
-
-if __name__ == '__main__':
-    TelegramBot().start()

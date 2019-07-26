@@ -4,6 +4,4 @@ __pycache__/
 .credentials
 .env
 tmp/
-*.pyc
-*.pyo
-
+*.py[co]

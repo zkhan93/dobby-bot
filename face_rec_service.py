@@ -4,15 +4,16 @@ from face_repo import FaceRepo
 import config
 import os
 import time
-from logger import logger
+from lib.log import logger
 
 
 class FaceRecService(object):
 
-    def __init__(self):
-        self.f_cascade = cv2.CascadeClassifier(config.CASCADE_FILE)
+    def __init__(self, base_path):
+        self.base_path = base_path
+        self.f_cascade = cv2.CascadeClassifier(os.path.join(base_path, config.CASCADE_FILE))
         self.face_recognizer = cv2.face.LBPHFaceRecognizer_create()
-        self.face_repo = FaceRepo()
+        self.face_repo = FaceRepo(self.base_path)
         self.train()
 
     def train(self):
@@ -40,7 +41,7 @@ class FaceRecService(object):
 
     def _save_face_img(self, img):
         filename = str(time.time()) + config.IMG_EXTN
-        filepath = os.path.join('.', 'tmp', 'faces', filename)
+        filepath = os.path.join(self.base_path, 'tmp', 'faces', filename)
         cv2.imwrite(filepath, img)
         time.sleep(0.25)
         return filepath
