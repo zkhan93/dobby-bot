@@ -1,6 +1,6 @@
 cloudinary==1.16.0
 dotenv==0.0.5
 funcsigs==1.0.2
-future==0.17.1
+future==1.0.0
 mock==3.0.5
 python-telegram-bot==11.1.0
